@@ -1,11 +1,11 @@
 [package]
-name = "bxb-repl-rs"
+name = "arith-repl"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
 doc = false
-name = "bxb-repl-rs"
+name = "arith-repl"
 
 [build-dependencies]
 cfgrammar = "0.13.10"
