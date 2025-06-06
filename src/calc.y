@@ -1,0 +1,201 @@
+%start Stmt
+%avoid_insert "INT"
+%%
+
+Stmt -> Result<String, ParseError>:
+     Expr { show_result($1) }
+    ;
+Expr -> Result<Nums, ParseError>:
+      Expr '+' Term {
+	  let lhs = $1?;
+	  let rhs = $3?;
+	  match lhs {
+	      Nums::U64(l) => {
+		  match rhs {
+		      Nums::U64(r) => {
+			  Ok(Nums::U64(l + r))
+		      }
+		      Nums::F64(r) => {
+			  Ok(Nums::F64((l as f64) + r))
+		      }
+		  }
+	      }
+	      Nums::F64(l) => {
+		  match rhs {
+		      Nums::F64(r) => {
+			  Ok(Nums::F64(l + r))
+		      }
+		      Nums::U64(r) => {
+			  Ok(Nums::F64(l + (r as f64)))
+		      }
+		  }
+	      }
+	  }
+      }
+    | Expr '-' Term {
+	let lhs = $1?;
+	let rhs = $3?;
+	match lhs {
+	    Nums::U64(l) => {
+		match rhs {
+		    Nums::U64(r) => {
+			Ok(Nums::U64(l - r))
+		    }
+		    Nums::F64(r) => {
+			Ok(Nums::F64((l as f64) - r))
+		    }
+		}
+	    }
+	    Nums::F64(l) => {
+		match rhs {
+		    Nums::F64(r) => {
+			Ok(Nums::F64(l - r))
+		    }
+		    Nums::U64(r) => {
+			Ok(Nums::F64(l - (r as f64)))
+		    }
+		}
+	    }
+	}
+      }
+    | Term { $1 }
+    ;
+
+Term -> Result<Nums, ParseError>:
+      Term '*' DivTerm {
+          let lhs = $1?;
+	  let rhs = $3?;
+	  match lhs {
+	      Nums::U64(l) => {
+		  match rhs {
+		      Nums::U64(r) => {
+		          Ok(Nums::U64(l*r))
+		      }
+		      Nums::F64(r) => {
+		          Ok(Nums::F64((l as f64)*r))
+		      }
+		      // _ => {
+		      //     return Err(ParseError::new("Invalid type for number!"));
+		      // }
+		  }
+	      }
+	      Nums::F64(l) => {
+		  match rhs {
+		      Nums::F64(r) => {
+		          Ok(Nums::F64(l*r))
+		      }
+		      Nums::U64(r) => {
+		          Ok(Nums::F64(l*(r as f64)))
+		      }
+		  }
+	      }
+	  }
+      }
+    | DivTerm { $1 }
+    ;
+
+DivTerm -> Result<Nums, ParseError>:
+    DivTerm '/' Factor { 
+        let dividend = $1?;
+        let divisor = $3?;
+	match divisor {
+	    Nums::U64(v) => {
+		if v == 0 {
+		    return Err(ParseError::new("Divisor can't be zero!"));
+		}
+		match dividend {
+		    Nums::U64(u) => {
+		        Ok(Nums::U64(u/v))
+		    }
+		    Nums::F64(f) => {
+			Ok(Nums::F64(f/v as f64))
+		    }
+		}
+	    }
+	    Nums::F64(v) => {
+		if v == 0.0 {
+		    return Err(ParseError::new("Divisor can't be zero!"));
+		}
+		match dividend {
+		    Nums::U64(u) => {
+		        Ok(Nums::F64(u as f64/v))
+		    }
+		    Nums::F64(f) => {
+			Ok(Nums::F64(f/v))
+		    }
+		}
+	    }
+	}
+    }
+    | Factor { $1 }
+    ;
+
+Factor -> Result<Nums, ParseError>:
+      '(' Expr ')' { $2 }
+    | 'INT'
+      {
+          let v = $1.map_err(|e| ParseError::new(&e.to_string()))?;
+          parse_int($lexer.span_str(v.span()))
+      }
+    | 'FLOAT'
+      {
+          let v = $1.map_err(|e| ParseError::new(&e.to_string()))?;
+          parse_float($lexer.span_str(v.span()))
+      }
+    ;
+%%
+use std::fmt;
+use std::error::Error;
+
+#[derive(Debug)]
+pub(crate) struct ParseError {
+    msg: String,
+}
+
+impl ParseError {
+    fn new(s: &str) -> Self {
+	Self {msg: s.to_string()}
+    }
+}
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+	write!(f, "parse error: {}", self.msg)
+    }
+}
+
+impl Error for ParseError {}
+
+fn show_result(expr_val: Result<Nums, ParseError>) -> Result<String, ParseError> {
+    let val = expr_val?;
+    match val {
+	Nums::U64(u) => { Ok(format!("Value: {}", u)) }
+	Nums::F64(u) => { Ok(format!("Value: {}", u)) }
+    }
+}
+
+enum Nums {
+    U64(u64),
+    F64(f64)
+}
+
+fn parse_int(s: &str) -> Result<Nums, ParseError> {
+    match s.parse::<u64>() {
+    	Ok(val) => Ok(Nums::U64(val)),
+	Err(_) => {
+	    eprintln!("{} - can't be represented as a u64", s);
+	    Err(ParseError::new("Invalid token!"))
+	}
+    }
+}
+
+fn parse_float(s: &str) -> Result<Nums, ParseError> {
+    match s.parse::<f64>() {
+    	Ok(val) => {
+	    Ok(Nums::F64(val))
+	}
+	Err(_) => {
+	    eprintln!("{} - can't be represented as a f64", s);
+	    Err(ParseError::new("Invalid token!"))
+	}
+    }
+}

@@ -1,0 +1,18 @@
+[package]
+name = "bxb-repl-rs"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+doc = false
+name = "bxb-repl-rs"
+
+[build-dependencies]
+cfgrammar = "0.13.10"
+lrlex = "0.13.10"
+lrpar = "0.13.10"
+
+[dependencies]
+cfgrammar = "0.13.10"
+lrlex = "0.13.10"
+lrpar = "0.13.10"
