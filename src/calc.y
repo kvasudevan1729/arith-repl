@@ -7,89 +7,20 @@ Stmt -> Result<String, ParseError>:
     ;
 Expr -> Result<Nums, ParseError>:
       Expr '+' Term {
-	  let lhs = $1?;
-	  let rhs = $3?;
-	  match lhs {
-	      Nums::U64(l) => {
-		  match rhs {
-		      Nums::U64(r) => {
-			  Ok(Nums::U64(l + r))
-		      }
-		      Nums::F64(r) => {
-			  Ok(Nums::F64((l as f64) + r))
-		      }
-		  }
-	      }
-	      Nums::F64(l) => {
-		  match rhs {
-		      Nums::F64(r) => {
-			  Ok(Nums::F64(l + r))
-		      }
-		      Nums::U64(r) => {
-			  Ok(Nums::F64(l + (r as f64)))
-		      }
-		  }
-	      }
-	  }
+          let v = do_arith_calc($1?, $3?, ArithOp::Add);
+	  Ok(v)
       }
     | Expr '-' Term {
-	let lhs = $1?;
-	let rhs = $3?;
-	match lhs {
-	    Nums::U64(l) => {
-		match rhs {
-		    Nums::U64(r) => {
-			Ok(Nums::U64(l - r))
-		    }
-		    Nums::F64(r) => {
-			Ok(Nums::F64((l as f64) - r))
-		    }
-		}
-	    }
-	    Nums::F64(l) => {
-		match rhs {
-		    Nums::F64(r) => {
-			Ok(Nums::F64(l - r))
-		    }
-		    Nums::U64(r) => {
-			Ok(Nums::F64(l - (r as f64)))
-		    }
-		}
-	    }
-	}
+	  let v = do_arith_calc($1?, $3?, ArithOp::Sub);
+	  Ok(v)
       }
     | Term { $1 }
     ;
 
 Term -> Result<Nums, ParseError>:
       Term '*' DivTerm {
-          let lhs = $1?;
-	  let rhs = $3?;
-	  match lhs {
-	      Nums::U64(l) => {
-		  match rhs {
-		      Nums::U64(r) => {
-		          Ok(Nums::U64(l*r))
-		      }
-		      Nums::F64(r) => {
-		          Ok(Nums::F64((l as f64)*r))
-		      }
-		      // _ => {
-		      //     return Err(ParseError::new("Invalid type for number!"));
-		      // }
-		  }
-	      }
-	      Nums::F64(l) => {
-		  match rhs {
-		      Nums::F64(r) => {
-		          Ok(Nums::F64(l*r))
-		      }
-		      Nums::U64(r) => {
-		          Ok(Nums::F64(l*(r as f64)))
-		      }
-		  }
-	      }
-	  }
+	  let v = do_arith_calc($1?, $3?, ArithOp::Multi);
+	  Ok(v)
       }
     | DivTerm { $1 }
     ;
@@ -103,29 +34,15 @@ DivTerm -> Result<Nums, ParseError>:
 		if v == 0 {
 		    return Err(ParseError::new("Divisor can't be zero!"));
 		}
-		match dividend {
-		    Nums::U64(u) => {
-		        Ok(Nums::U64(u/v))
-		    }
-		    Nums::F64(f) => {
-			Ok(Nums::F64(f/v as f64))
-		    }
-		}
 	    }
 	    Nums::F64(v) => {
 		if v == 0.0 {
 		    return Err(ParseError::new("Divisor can't be zero!"));
 		}
-		match dividend {
-		    Nums::U64(u) => {
-		        Ok(Nums::F64(u as f64/v))
-		    }
-		    Nums::F64(f) => {
-			Ok(Nums::F64(f/v))
-		    }
-		}
 	    }
 	}
+	let v = do_arith_calc(dividend, divisor, ArithOp::Div);
+	Ok(v)
     }
     | Factor { $1 }
     ;
@@ -197,5 +114,89 @@ fn parse_float(s: &str) -> Result<Nums, ParseError> {
 	    eprintln!("{} - can't be represented as a f64", s);
 	    Err(ParseError::new("Invalid token!"))
 	}
+    }
+}
+
+enum ArithOp {
+    Add,
+    Sub,
+    Multi,
+    Div
+}
+
+fn do_arith_calc(lhs: Nums, rhs: Nums, op: ArithOp) -> Nums {
+    match lhs {
+        Nums::U64(l) => {
+            match rhs {
+                Nums::U64(r) => {
+  		    match op {
+		        ArithOp::Add => {
+			    Nums::U64(l + r)
+		        }
+		        ArithOp::Sub => {
+			    Nums::U64(l - r)
+		        }
+		        ArithOp::Multi => {
+			    Nums::U64(l * r)
+		        }
+		        ArithOp::Div => {
+			    Nums::U64(l / r)
+		        }
+		    }
+                }
+                Nums::F64(r) => {
+		    match op {
+		        ArithOp::Add => {
+		            Nums::F64((l as f64) + r)
+		        }
+		        ArithOp::Sub => {
+		            Nums::F64((l as f64) - r)
+		        }
+		        ArithOp::Multi => {
+		            Nums::F64((l as f64) * r)
+		        }
+		        ArithOp::Div => {
+		            Nums::F64((l as f64) / r)
+		        }
+		    }
+                }
+            }
+        }
+        Nums::F64(l) => {
+            match rhs {
+                Nums::F64(r) => {
+		    match op {
+		        ArithOp::Add => {
+		            Nums::F64(l + r)
+		        }
+		        ArithOp::Sub => {
+		            Nums::F64(l - r)
+		        }
+		        ArithOp::Multi => {
+		            Nums::F64(l * r)
+		        }
+		        ArithOp::Div => {
+		            Nums::F64(l / r)
+		        }
+		    }
+                }
+                Nums::U64(r) => {
+		    match op {
+		        ArithOp::Add => {
+		            Nums::F64(l + (r as f64))
+		        }
+		        ArithOp::Sub => {
+		            Nums::F64(l - (r as f64))
+		        }
+		        ArithOp::Multi => {
+		            Nums::F64(l * (r as f64))
+		        }
+		        ArithOp::Div => {
+		            Nums::F64(l / (r as f64))
+		        }
+		    }
+                }
+            }
+        }
     }
 }
