@@ -25,7 +25,12 @@ fn main() {
                 match res {
                     Some(r) => match r {
                         Ok(v) => {
-                            println!("Result: {}", v)
+                            println!(
+                                "Result:\n id: {}, val: {}",
+                                v.get_expr_id(),
+                                v.get_expr_val()
+                            );
+                            println!("\n span: {}", v.get_span());
                         }
                         Err(e) => {
                             eprintln!("Error:\n{}", e)

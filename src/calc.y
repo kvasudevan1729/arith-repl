@@ -2,8 +2,13 @@
 %avoid_insert "INT"
 %%
 
-Stmt -> Result<String, ParseError>:
-     Expr { show_result($1) }
+Stmt -> Result<ExprAssign, ParseError>:
+     'ID' '=' Expr { 
+	let var_id = $1.map_err(|e| ParseError::new(&e.to_string()))?;
+	let var_id_str = $lexer.span_str(var_id.span());
+	let s = show_result($3)?;
+	Ok(ExprAssign::new(var_id_str.to_string(), s, $span))
+     }
     ;
 Expr -> Result<Nums, ParseError>:
       Expr '+' Term {
@@ -61,8 +66,67 @@ Factor -> Result<Nums, ParseError>:
       }
     ;
 %%
-use std::fmt;
 use std::error::Error;
+use std::fmt;
+
+use cfgrammar::Span;
+
+pub(crate) struct ExprAssign {
+   id: String,
+   expr_val: String,
+   span: Span
+}
+
+impl ExprAssign {
+    fn new(id: String, s: String, span: Span) -> Self {
+        Self {id: id, expr_val: s, span: span}
+    }
+
+    pub(crate) fn get_expr_id(&self) -> &str {
+	self.id.as_str()
+    }
+
+    pub(crate) fn get_span(&self) -> usize {
+	self.span.len()
+    }
+
+    pub(crate) fn get_expr_val(&self) -> &str {
+	self.expr_val.as_str()
+    }
+}
+
+fn show_result(expr_val: Result<Nums, ParseError>) -> Result<String, ParseError> {
+    let val = expr_val?;
+    match val {
+        Nums::U64(u) => Ok(format!("Value: {}", u)),
+        Nums::F64(u) => Ok(format!("Value: {}", u)),
+    }
+}
+
+enum Nums {
+    U64(u64),
+    F64(f64),
+}
+
+fn parse_int(s: &str) -> Result<Nums, ParseError> {
+    match s.parse::<u64>() {
+        Ok(val) => Ok(Nums::U64(val)),
+        Err(_) => {
+            eprintln!("{} - can't be represented as a u64", s);
+            Err(ParseError::new("Invalid token!"))
+        }
+    }
+}
+
+fn parse_float(s: &str) -> Result<Nums, ParseError> {
+    match s.parse::<f64>() {
+        Ok(val) => Ok(Nums::F64(val)),
+        Err(_) => {
+            eprintln!("{} - can't be represented as a f64", s);
+            Err(ParseError::new("Invalid token!"))
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct ParseError {
@@ -71,132 +135,53 @@ pub(crate) struct ParseError {
 
 impl ParseError {
     fn new(s: &str) -> Self {
-	Self {msg: s.to_string()}
+        Self { msg: s.to_string() }
     }
 }
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-	write!(f, "parse error: {}", self.msg)
+        write!(f, "parse error: {}", self.msg)
     }
 }
 
 impl Error for ParseError {}
 
-fn show_result(expr_val: Result<Nums, ParseError>) -> Result<String, ParseError> {
-    let val = expr_val?;
-    match val {
-	Nums::U64(u) => { Ok(format!("Value: {}", u)) }
-	Nums::F64(u) => { Ok(format!("Value: {}", u)) }
-    }
-}
-
-enum Nums {
-    U64(u64),
-    F64(f64)
-}
-
-fn parse_int(s: &str) -> Result<Nums, ParseError> {
-    match s.parse::<u64>() {
-    	Ok(val) => Ok(Nums::U64(val)),
-	Err(_) => {
-	    eprintln!("{} - can't be represented as a u64", s);
-	    Err(ParseError::new("Invalid token!"))
-	}
-    }
-}
-
-fn parse_float(s: &str) -> Result<Nums, ParseError> {
-    match s.parse::<f64>() {
-    	Ok(val) => {
-	    Ok(Nums::F64(val))
-	}
-	Err(_) => {
-	    eprintln!("{} - can't be represented as a f64", s);
-	    Err(ParseError::new("Invalid token!"))
-	}
-    }
-}
-
 enum ArithOp {
     Add,
     Sub,
     Multi,
-    Div
+    Div,
 }
 
 fn do_arith_calc(lhs: Nums, rhs: Nums, op: ArithOp) -> Nums {
     match lhs {
-        Nums::U64(l) => {
-            match rhs {
-                Nums::U64(r) => {
-  		    match op {
-		        ArithOp::Add => {
-			    Nums::U64(l + r)
-		        }
-		        ArithOp::Sub => {
-			    Nums::U64(l - r)
-		        }
-		        ArithOp::Multi => {
-			    Nums::U64(l * r)
-		        }
-		        ArithOp::Div => {
-			    Nums::U64(l / r)
-		        }
-		    }
-                }
-                Nums::F64(r) => {
-		    match op {
-		        ArithOp::Add => {
-		            Nums::F64((l as f64) + r)
-		        }
-		        ArithOp::Sub => {
-		            Nums::F64((l as f64) - r)
-		        }
-		        ArithOp::Multi => {
-		            Nums::F64((l as f64) * r)
-		        }
-		        ArithOp::Div => {
-		            Nums::F64((l as f64) / r)
-		        }
-		    }
-                }
-            }
-        }
-        Nums::F64(l) => {
-            match rhs {
-                Nums::F64(r) => {
-		    match op {
-		        ArithOp::Add => {
-		            Nums::F64(l + r)
-		        }
-		        ArithOp::Sub => {
-		            Nums::F64(l - r)
-		        }
-		        ArithOp::Multi => {
-		            Nums::F64(l * r)
-		        }
-		        ArithOp::Div => {
-		            Nums::F64(l / r)
-		        }
-		    }
-                }
-                Nums::U64(r) => {
-		    match op {
-		        ArithOp::Add => {
-		            Nums::F64(l + (r as f64))
-		        }
-		        ArithOp::Sub => {
-		            Nums::F64(l - (r as f64))
-		        }
-		        ArithOp::Multi => {
-		            Nums::F64(l * (r as f64))
-		        }
-		        ArithOp::Div => {
-		            Nums::F64(l / (r as f64))
-		        }
-		    }
-                }
-            }
-        }
+        Nums::U64(l) => match rhs {
+            Nums::U64(r) => match op {
+                ArithOp::Add => Nums::U64(l + r),
+                ArithOp::Sub => Nums::U64(l - r),
+                ArithOp::Multi => Nums::U64(l * r),
+                ArithOp::Div => Nums::U64(l / r),
+            },
+            Nums::F64(r) => match op {
+                ArithOp::Add => Nums::F64((l as f64) + r),
+                ArithOp::Sub => Nums::F64((l as f64) - r),
+                ArithOp::Multi => Nums::F64((l as f64) * r),
+                ArithOp::Div => Nums::F64((l as f64) / r),
+            },
+        },
+        Nums::F64(l) => match rhs {
+            Nums::F64(r) => match op {
+                ArithOp::Add => Nums::F64(l + r),
+                ArithOp::Sub => Nums::F64(l - r),
+                ArithOp::Multi => Nums::F64(l * r),
+                ArithOp::Div => Nums::F64(l / r),
+            },
+            Nums::U64(r) => match op {
+                ArithOp::Add => Nums::F64(l + (r as f64)),
+                ArithOp::Sub => Nums::F64(l - (r as f64)),
+                ArithOp::Multi => Nums::F64(l * (r as f64)),
+                ArithOp::Div => Nums::F64(l / (r as f64)),
+            },
+        },
     }
 }
